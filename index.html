@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>MeusTreinos</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #333;
+      color: #fff;
+      margin: 0;
+      padding: 0;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 40px auto;
+      background: #444;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .tab-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .tab {
+      padding: 10px 15px;
+      background: #666;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .tab.active {
+      background: #007bff;
+      color: white;
+      font-weight: bold;
+    }
+
+    .tab .delete-btn {
+      background: red;
+      color: white;
+      border: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .tab .delete-btn:hover {
+      background: darkred;
+    }
+
+    .exercise-entry {
+      margin-bottom: 20px;
+    }
+
+    .series-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .series-group input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    input, button {
+      margin-bottom: 10px;
+    }
+
+    button {
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .add-btn {
+      background: #007bff;
+      color: white;
+    }
+
+    .add-btn:hover {
+      background: #0056b3;
+    }
+
+    .exercise-box {
+      background: #555;
+      padding: 12px;
+      margin-bottom: 15px;
+      border-radius: 8px;
+    }
+
+    .series-item {
+      margin-left: 10px;
+    }
+
+    /* Estilo do relatório no modo escuro */
+    #relatorio {
+      background-color: #444;
+      color: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 20px;
+      display: block; /* Inicialmente visível */
+    }
+
+    /* Botão de minimizar */
+    .minimize-btn {
+      background: red;
+      color: white;
+      margin-top: 10px;
+    }
+
+    .minimize-btn:hover {
+      background: darkred;
+    }
+  </style>
+</head>
+<body>
+  <div id="datetime" style="text-align: center; padding: 10px; font-size: 18px;"></div>
+
+  <div class="container">
+    <h1>Meus Treinos</h1>
+
+    <div>
+      <input type="text" id="newWorkoutName" placeholder="Nome do treino (ex: Peito e Tríceps)" style="width: 100%; padding: 8px;" />
+      <button class="add-btn" onclick="createWorkout()">Criar Novo Treino</button>
+    </div>
+
+    <div class="tab-list" id="tabList"></div>
+
+    <div id="workoutArea" style="display: none;">
+      <div class="exercise-entry">
+        <input type="text" id="exerciseName" placeholder="Nome do Exercício" style="width: 100%; padding: 8px;" />
+        <div id="seriesContainer"></div>
+        <button class="add-btn" onclick="addSerie()">Adicionar Série</button>
+        <button class="add-btn" onclick="addExercise()">Salvar Exercício</button>
+      </div>
+
+      <hr style="margin: 30px 0;" />
+      <h2>📊 Relatório de Treino</h2>
+      <button class="add-btn" onclick="gerarRelatorio()">Gerar Relatório</button>
+      <div id="relatorioContainer" style="margin-top: 20px;"></div>
+      <div id="exerciseList"></div>
+    </div>
+  </div>
+
+  <script>
+    let workouts = {};
+    let currentWorkout = null;
+    let seriesIndex = 0;
+
+    window.onload = function () {
+      const saved = localStorage.getItem('meusTreinos');
+      if (saved) {
+        workouts = JSON.parse(saved);
+        const treinoList = Object.keys(workouts);
+        if (treinoList.length > 0) {
+          currentWorkout = treinoList[0];
+          renderTabs();
+          renderWorkout();
+        }
+      }
+
+      // Atualiza a data e hora no topo
+      setInterval(() => {
+        const now = new Date();
+        document.getElementById('datetime').innerText = now.toLocaleString();
+      }, 1000);
+    };
+
+    function saveToLocalStorage() {
+      localStorage.setItem('meusTreinos', JSON.stringify(workouts));
+    }
+
+    function createWorkout() {
+      const name = document.getElementById('newWorkoutName').value.trim();
+      if (!name) return alert("Digite o nome do treino.");
+      if (workouts[name]) return alert("Treino com esse nome já existe.");
+
+      workouts[name] = [];
+      currentWorkout = name;
+      document.getElementById('newWorkoutName').value = '';
+      saveToLocalStorage();
+      renderTabs();
+      renderWorkout();
+    }
+
+    function renderTabs() {
+      const tabList = document.getElementById('tabList');
+      tabList.innerHTML = '';
+      Object.keys(workouts).forEach(name => {
+        const tab = document.createElement('div');
+        tab.className = 'tab' + (name === currentWorkout ? ' active' : '');
+        tab.innerText = name;
+
+        // Adiciona o botão de exclusão ("X")
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.innerText = 'X';
+        deleteBtn.onclick = (e) => {
+          e.stopPropagation();
+          deleteWorkout(name);
+        };
+
+        tab.appendChild(deleteBtn);
+        tab.onclick = () => {
+          currentWorkout = name;
+          renderTabs();
+          renderWorkout();
+        };
+
+        tabList.appendChild(tab);
+      });
+    }
+
+    function deleteWorkout(workoutName) {
+      if (confirm(`Tem certeza de que deseja excluir o treino "${workoutName}"?`)) {
+        delete workouts[workoutName];
+        saveToLocalStorage();
+        if (currentWorkout === workoutName) {
+          currentWorkout = null;
+          document.getElementById('workoutArea').style.display = 'none';
+        }
+        renderTabs();
+      }
+    }
+
+    function renderWorkout() {
+      document.getElementById('workoutArea').style.display = 'block';
+      document.getElementById('seriesContainer').innerHTML = '';
+      document.getElementById('exerciseName').value = '';
+      seriesIndex = 0;
+      renderExerciseList();
+    }
+
+    function addSerie() {
+      if (seriesIndex >= 4) return alert("Máximo de 4 séries por exercício.");
+
+      const container = document.getElementById('seriesContainer');
+      const div = document.createElement('div');
+      div.className = 'series-group';
+      div.innerHTML = `
+        <input type="number" placeholder="Séries" class="series" />
+        <input type="number" placeholder="Repetições" class="reps" />
+        <input type="number" placeholder="Peso (kg)" class="weight" />
+      `;
+      container.appendChild(div);
+      seriesIndex++;
+    }
+
+    function addExercise() {
+      const name = document.getElementById('exerciseName').value;
+      if (!name) return alert("Digite o nome do exercício.");
+
+      const seriesElements = document.querySelectorAll('#seriesContainer .series-group');
+      const variations = [];
+
+      seriesElements.forEach(group => {
+        const series = group.querySelector('.series').value;
+        const reps = group.querySelector('.reps').value;
+        const weight = group.querySelector('.weight').value;
+        if (series && reps && weight) {
+          variations.push({ series, reps, weight });
+        }
+      });
+
+      if (variations.length === 0) return alert("Adicione pelo menos uma série.");
+
+      const now = new Date();
+      const formattedDate = now.toLocaleString();
+
+      workouts[currentWorkout].push({ name, variations, date: formattedDate });
+      saveToLocalStorage();
+      renderWorkout();
+    }
+
+    function renderExerciseList() {
+      const container = document.getElementById('exerciseList');
+      container.innerHTML = '';
+
+      workouts[currentWorkout].forEach((ex, i) => {
+        const box = document.createElement('div');
+        box.className = 'exercise-box';
+        let content = `<strong>${ex.name}</strong><br/>`;
+        content += `<em>Cadastrado em: ${ex.date}</em><br/>`;
+
+        ex.variations.forEach((v, idx) => {
+          content += `<div class="series-item">Série ${idx + 1}: ${v.series}x${v.reps} - ${v.weight}kg</div>`;
+        });
+
+        box.innerHTML = content;
+        container.appendChild(box);
+      });
+    }
+
+    function gerarRelatorio() {
+      const relatorioContainer = document.getElementById('relatorioContainer');
+      relatorioContainer.innerHTML = '';
+
+      if (!currentWorkout || workouts[currentWorkout].length === 0) {
+        relatorioContainer.innerHTML = '<p>Nenhum exercício registrado para este treino.</p>';
+        return;
+      }
+
+      const relatorioDiv = document.createElement('div');
+      relatorioDiv.id = 'relatorio';
+
+      relatorioDiv.innerHTML = `<h3>Relatório do Treino: ${currentWorkout}</h3>`;
+
+      let totalVolume = 0; // Para calcular o volume total (peso x repetições)
+
+      workouts[currentWorkout].forEach((ex, i) => {
+        relatorioDiv.innerHTML += `<p><strong>${ex.name}</strong></p>`;
+        ex.variations.forEach((v, idx) => {
+          const volume = v.series * v.reps * v.weight;
+          totalVolume += volume;
+          relatorioDiv.innerHTML += `<div class="series-item">Série ${idx + 1}: ${v.series}x${v.reps} - ${v.weight}kg (Volume: ${volume}kg)</div>`;
+        });
+      });
+
+      relatorioDiv.innerHTML += `<p><strong>Volume Total do Treino:</strong> ${totalVolume}kg</p>`;
+
+      // Adiciona o botão de minimizar
+      const minimizeButton = document.createElement('button');
+      minimizeButton.className = 'minimize-btn';
+      minimizeButton.innerText = 'Minimizar Relatório';
+      minimizeButton.onclick = () => {
+        relatorioDiv.style.display = 'none';
+      };
+      relatorioDiv.appendChild(minimizeButton);
+
+      relatorioContainer.appendChild(relatorioDiv);
+    }
+  </script>
+</body>
+</html>
